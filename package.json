@@ -7,5 +7,6 @@
   },
   "dependencies": {
     "mineflayer": "^4.21.0"
+    "mineflayer-pathfinder": "^2.4.4"
   }
 }
