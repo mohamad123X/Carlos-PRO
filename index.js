@@ -288,18 +288,18 @@ client.on('messageCreate', async message => {
     const config = db[message.guild.id];
     if (!config) return;
 
-    // التحقق مما إذا كانت الرسالة في قناة الشات المخصصة
-    if (message.channel.id === config.chatChannelId) {
+    // تم التحديث: التحقق مما إذا كانت الرسالة في قناة الشات المخصصة أو قناة السجلات
+    if (message.channel.id === config.chatChannelId || message.channel.id === config.logsChannelId) {
         const mcBot = activeMinecraftBots.get(message.guild.id);
         
         // التحقق من أن البوت شغال وموجود داخل اللعبة (entity is loaded)
         if (mcBot && mcBot.entity) {
-            // إرسال محتوى رسالة الديسكورد إلى شات ماين كرافت وكأن البوت هو من كتبها
+            // إرسال محتوى رسالة الديسكورد إلى شات ماين كرافت
             mcBot.chat(message.content);
             // إضافة تفاعل (Reaction) لتأكيد وصول الرسالة
             await message.react('✅').catch(() => {}); 
         } else {
-            // في حال كان البوت مطفأ أو لم يدخل بعد
+            // في حال كان البوت مطفأ أو لم يدخل بعد، نضع علامة إكس حمراء
             await message.react('❌').catch(() => {});
         }
     }
@@ -351,6 +351,16 @@ function startMinecraftBot(guild, config, version) {
 
         mcBot.on('spawn', () => {
             sendLog(`🟢 **تم الاتصال!** دخل البوت \`${config.botName}\` إلى السيرفر وهو الآن ثابت في مكانه.`);
+            
+            // الحل: تصفير أي حركة وإرسال حزمة (تحديث الرؤية) للسيرفر ليعرف أن البوت متواجد
+            mcBot.clearControlStates();
+            
+            setTimeout(() => {
+                if (mcBot.entity) {
+                    // تحديث زاوية الكاميرا فقط لمنع الطرد بدون المشي
+                    mcBot.look(mcBot.entity.yaw, mcBot.entity.pitch, true).catch(() => {});
+                }
+            }, 1000);
         });
 
         mcBot.on('end', () => {
