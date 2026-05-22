@@ -8,7 +8,8 @@ const {
     TextInputBuilder, 
     TextInputStyle, 
     REST, 
-    Routes 
+    Routes,
+    MessageFlags // تم استيراد هذا الجزء لحل تحذير الـ ephemeral
 } = require('discord.js');
 const mineflayer = require('mineflayer');
 
@@ -21,12 +22,12 @@ const client = new Client({
     ]
 });
 
-// متغير مؤقت لتخزين بيانات الجلسة 
+// متغير مؤفت لتخزين بيانات الجلسة 
 const userSessions = new Map();
 const TOKEN = process.env.DISCORD_TOKEN;
 
-// تسجيل أوامر السلاش عند التشغيل
-client.on('ready', async () => {
+// تعديل الحدث إلى clientReady بناءً على تحذير ديسكورد الجديد
+client.on('clientReady', async () => {
     console.log(`🔥 تم تشغيل بوت الديسكورد بنجاح باسم: ${client.user.tag}`);
     const commands = [{ name: 'spawn', description: 'إدخال بوت لاعب إلى سيرفر ماين كرافت الخاص بك' }];
     const rest = new REST({ version: '10' }).setToken(TOKEN);
@@ -41,14 +42,13 @@ client.on('ready', async () => {
 // التعامل مع التفاعلات
 client.on('interactionCreate', async interaction => {
     
-    // 1. أمر التشغيل /spawn وإنشاء قائمة الإصدارات (الحد الأقصى 25 خيار)
+    // 1. أمر التشغيل /spawn
     if (interaction.isChatInputCommand()) {
         if (interaction.commandName === 'spawn') {
             const selectMenu = new StringSelectMenuBuilder()
                 .setCustomId('select_version')
                 .setPlaceholder('اختر إصدار سيرفر ماين كرافت...')
                 .addOptions(
-                    // تم إضافة 25 إصداراً كحد أقصى مسموح به في ديسكورد
                     new StringSelectMenuOptionBuilder().setLabel('1.8.9').setValue('1.8.9'),
                     new StringSelectMenuOptionBuilder().setLabel('1.9.4').setValue('1.9.4'),
                     new StringSelectMenuOptionBuilder().setLabel('1.10.2').setValue('1.10.2'),
@@ -77,22 +77,26 @@ client.on('interactionCreate', async interaction => {
                 );
 
             const row = new ActionRowBuilder().addComponents(selectMenu);
-            await interaction.reply({ content: '⚙️ يرجى اختيار إصدار السيرفر من القائمة أدناه:', components: [row], ephemeral: true });
+            
+            // استخدام الطريقة الحديثة للإرسال المخفي عبر الـ flags
+            await interaction.reply({ 
+                content: '⚙️ يرجى اختيار إصدار السيرفر من القائمة أدناه:', 
+                components: [row], 
+                flags: [MessageFlags.Ephemeral] 
+            });
         }
     }
 
-    // 2. معالجة اختيار الإصدار وإظهار النافذة المنبثقة (مباشرة بدون زر وسيط)
+    // 2. معالجة اختيار الإصدار وإظهار النافذة المنبثقة
     if (interaction.isStringSelectMenu()) {
         if (interaction.customId === 'select_version') {
             const selectedVersion = interaction.values[0];
             
-            // حفظ الإصدار في ذاكرة الجلسة
             userSessions.set(interaction.user.id, { version: selectedVersion });
 
-            // إنشاء النافذة المنبثقة مباشرة
             const modal = new ModalBuilder()
                 .setCustomId('bot_details_modal')
-                .setTitle(`بيانات الدخول (إصدار ${selectedVersion})`); // العنوان يتغير ديناميكياً
+                .setTitle(`بيانات الدخول (إصدار ${selectedVersion})`);
 
             const ipInput = new TextInputBuilder().setCustomId('mc_ip').setLabel('عنوان السيرفر (IP)').setStyle(TextInputStyle.Short).setRequired(true).setPlaceholder('مثال: my-server.magmanode.net');
             const portInput = new TextInputBuilder().setCustomId('mc_port').setLabel('البورت (Port)').setStyle(TextInputStyle.Short).setRequired(false).setPlaceholder('25565 (اتركه فارغاً للافتراضي)');
@@ -106,7 +110,6 @@ client.on('interactionCreate', async interaction => {
                 new ActionRowBuilder().addComponents(commandsInput)
             );
 
-            // إظهار النافذة المنبثقة كاستجابة فورية لاختيار القائمة
             await interaction.showModal(modal);
         }
     }
@@ -114,7 +117,8 @@ client.on('interactionCreate', async interaction => {
     // 3. استلام البيانات من النافذة المنبثقة وتشغيل البوت
     if (interaction.isModalSubmit()) {
         if (interaction.customId === 'bot_details_modal') {
-            await interaction.deferReply({ ephemeral: true });
+            // استخدام الطريقة الحديثة لتأخير الرد المخفي
+            await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
 
             const ip = interaction.fields.getTextInputValue('mc_ip');
             const portStr = interaction.fields.getTextInputValue('mc_port');
@@ -125,7 +129,8 @@ client.on('interactionCreate', async interaction => {
             const session = userSessions.get(interaction.user.id);
             const version = session ? session.version : '1.20.4';
 
-            await interaction.followup({ content: `🚀 جاري تشغيل البوت **${username}** وإرساله إلى \`${ip}:${port}\` بإصدار \`${version}\`...` });
+            // تصحيح الخطأ الإملائي البرمجي هنا باستخدام الـ U الكبيرة في followUp
+            await interaction.followUp({ content: `🚀 جاري تشغيل البوت **${username}** وإرساله إلى \`${ip}:${port}\` بإصدار \`${version}\`...` });
 
             // استدعاء محرك Mineflayer
             createMinecraftBot(ip, port, username, version, commandsText);
@@ -151,7 +156,7 @@ function createMinecraftBot(host, port, username, version, commandsText) {
                 setTimeout(() => {
                     const textToSend = line.trim();
                     if (textToSend) {
-                        mcBot.chat(textToSend); // Mineflayer يميز تلقائياً بين الأوامر (/) والرسائل العادية
+                        mcBot.chat(textToSend);
                     }
                 }, (index + 1) * 1500); 
             });
