@@ -4,8 +4,6 @@ const {
     ActionRowBuilder, 
     StringSelectMenuBuilder, 
     StringSelectMenuOptionBuilder, 
-    ButtonBuilder, 
-    ButtonStyle, 
     ModalBuilder, 
     TextInputBuilder, 
     TextInputStyle, 
@@ -14,7 +12,7 @@ const {
 } = require('discord.js');
 const mineflayer = require('mineflayer');
 
-// 1. إعداد صلاحيات بوت الديسكورد
+// إعداد صلاحيات البوت الأساسية
 const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
@@ -23,26 +21,16 @@ const client = new Client({
     ]
 });
 
-// متغير مؤقت لتخزين بيانات الجلسة الحالية أثناء الإعداد
+// متغير مؤقت لتخزين بيانات الجلسة 
 const userSessions = new Map();
-
-// توكن الديسكورد من متغيرات البيئة للأمان
 const TOKEN = process.env.DISCORD_TOKEN;
 
-// 2. تسجيل أمر السلاش الخاص بالتشغيل (/spawn)
+// تسجيل أوامر السلاش عند التشغيل
 client.on('ready', async () => {
     console.log(`🔥 تم تشغيل بوت الديسكورد بنجاح باسم: ${client.user.tag}`);
-    
-    const commands = [
-        {
-            name: 'spawn',
-            description: 'إدخال بوت لاعب إلى سيرفر ماين كرافت الخاص بك',
-        }
-    ];
-
+    const commands = [{ name: 'spawn', description: 'إدخال بوت لاعب إلى سيرفر ماين كرافت الخاص بك' }];
     const rest = new REST({ version: '10' }).setToken(TOKEN);
     try {
-        console.log('⏳ جاري تسجيل أوامر السلاش...');
         await rest.put(Routes.applicationCommands(client.user.id), { body: commands });
         console.log('✅ تم تسجيل أوامر السلاش بنجاح!');
     } catch (error) {
@@ -50,61 +38,66 @@ client.on('ready', async () => {
     }
 });
 
-// 3. التعامل مع التفاعلات (الأوامر، القوائم، الأزرار، النوافذ)
+// التعامل مع التفاعلات
 client.on('interactionCreate', async interaction => {
     
-    // أولاً: التعامل مع أمر السلاش /spawn
+    // 1. أمر التشغيل /spawn وإنشاء قائمة الإصدارات (الحد الأقصى 25 خيار)
     if (interaction.isChatInputCommand()) {
         if (interaction.commandName === 'spawn') {
-            // إنشاء القائمة المنسدلة للإصدارات (بسبب حد ديسكورد 25 خياراً، نضع أبرز الإصدارات المطلوبة)
             const selectMenu = new StringSelectMenuBuilder()
                 .setCustomId('select_version')
                 .setPlaceholder('اختر إصدار سيرفر ماين كرافت...')
                 .addOptions(
+                    // تم إضافة 25 إصداراً كحد أقصى مسموح به في ديسكورد
                     new StringSelectMenuOptionBuilder().setLabel('1.8.9').setValue('1.8.9'),
+                    new StringSelectMenuOptionBuilder().setLabel('1.9.4').setValue('1.9.4'),
+                    new StringSelectMenuOptionBuilder().setLabel('1.10.2').setValue('1.10.2'),
+                    new StringSelectMenuOptionBuilder().setLabel('1.11.2').setValue('1.11.2'),
                     new StringSelectMenuOptionBuilder().setLabel('1.12.2').setValue('1.12.2'),
+                    new StringSelectMenuOptionBuilder().setLabel('1.13.2').setValue('1.13.2'),
+                    new StringSelectMenuOptionBuilder().setLabel('1.14.4').setValue('1.14.4'),
+                    new StringSelectMenuOptionBuilder().setLabel('1.15.2').setValue('1.15.2'),
                     new StringSelectMenuOptionBuilder().setLabel('1.16.5').setValue('1.16.5'),
+                    new StringSelectMenuOptionBuilder().setLabel('1.17.1').setValue('1.17.1'),
                     new StringSelectMenuOptionBuilder().setLabel('1.18.2').setValue('1.18.2'),
+                    new StringSelectMenuOptionBuilder().setLabel('1.19.2').setValue('1.19.2'),
+                    new StringSelectMenuOptionBuilder().setLabel('1.19.3').setValue('1.19.3'),
                     new StringSelectMenuOptionBuilder().setLabel('1.19.4').setValue('1.19.4'),
+                    new StringSelectMenuOptionBuilder().setLabel('1.20.1').setValue('1.20.1'),
+                    new StringSelectMenuOptionBuilder().setLabel('1.20.2').setValue('1.20.2'),
+                    new StringSelectMenuOptionBuilder().setLabel('1.20.3').setValue('1.20.3'),
                     new StringSelectMenuOptionBuilder().setLabel('1.20.4').setValue('1.20.4'),
+                    new StringSelectMenuOptionBuilder().setLabel('1.20.5').setValue('1.20.5'),
+                    new StringSelectMenuOptionBuilder().setLabel('1.20.6').setValue('1.20.6'),
                     new StringSelectMenuOptionBuilder().setLabel('1.21').setValue('1.21'),
-                    new StringSelectMenuOptionBuilder().setLabel('1.26.2 (الأحدث)').setValue('1.26.2')
+                    new StringSelectMenuOptionBuilder().setLabel('1.21.1').setValue('1.21.1'),
+                    new StringSelectMenuOptionBuilder().setLabel('1.21.2').setValue('1.21.2'),
+                    new StringSelectMenuOptionBuilder().setLabel('1.21.3').setValue('1.21.3'),
+                    new StringSelectMenuOptionBuilder().setLabel('1.26.2').setValue('1.26.2')
                 );
 
             const row = new ActionRowBuilder().addComponents(selectMenu);
-            await interaction.reply({ content: '⚙️ الخطوة 1: يرجى اختيار إصدار السيرفر من القائمة أدناه:', components: [row], ephemeral: true });
+            await interaction.reply({ content: '⚙️ يرجى اختيار إصدار السيرفر من القائمة أدناه:', components: [row], ephemeral: true });
         }
     }
 
-    // ثانياً: استقبال اختيار الإصدار وتوليد زر فتح النافذة المنبثقة
+    // 2. معالجة اختيار الإصدار وإظهار النافذة المنبثقة (مباشرة بدون زر وسيط)
     if (interaction.isStringSelectMenu()) {
         if (interaction.customId === 'select_version') {
             const selectedVersion = interaction.values[0];
             
-            // حفظ الإصدار المختار في جلسة المستخدم مؤقتاً
+            // حفظ الإصدار في ذاكرة الجلسة
             userSessions.set(interaction.user.id, { version: selectedVersion });
 
-            const button = new ButtonBuilder()
-                .setCustomId('open_modal')
-                .setLabel('اضغط لملء بيانات السيرفر')
-                .setStyle(ButtonStyle.Primary);
-
-            const row = new ActionRowBuilder().addComponents(button);
-            await interaction.update({ content: `✅ تم اختيار الإصدار: **${selectedVersion}**\nالآن اضغط على الزر أدناه لإدخال تفاصيل السيرفر:`, components: [row] });
-        }
-    }
-
-    // ثالثاً: فتح النافذة المنبثقة (Modal) عند الضغط على الزر
-    if (interaction.isButton()) {
-        if (interaction.customId === 'open_modal') {
+            // إنشاء النافذة المنبثقة مباشرة
             const modal = new ModalBuilder()
                 .setCustomId('bot_details_modal')
-                .setTitle('بيانات دخول بوت ماين كرافت');
+                .setTitle(`بيانات الدخول (إصدار ${selectedVersion})`); // العنوان يتغير ديناميكياً
 
             const ipInput = new TextInputBuilder().setCustomId('mc_ip').setLabel('عنوان السيرفر (IP)').setStyle(TextInputStyle.Short).setRequired(true).setPlaceholder('مثال: my-server.magmanode.net');
-            const portInput = new TextInputBuilder().setCustomId('mc_port').setLabel('البورت (Port) - اتركه فارغاً للافتراضي').setStyle(TextInputStyle.Short).setRequired(false).setPlaceholder('25565');
+            const portInput = new TextInputBuilder().setCustomId('mc_port').setLabel('البورت (Port)').setStyle(TextInputStyle.Short).setRequired(false).setPlaceholder('25565 (اتركه فارغاً للافتراضي)');
             const usernameInput = new TextInputBuilder().setCustomId('mc_username').setLabel('اسم لاعب البوت (Username)').setStyle(TextInputStyle.Short).setRequired(true).setPlaceholder('Aternot_Bot');
-            const commandsInput = new TextInputBuilder().setCustomId('mc_commands').setLabel('أوامر/رسائل الدخول (سطر لكل أمر)').setStyle(TextInputStyle.Paragraph).setRequired(false).setPlaceholder('/login mypassword\n/register mypassword\nمرحباً بالجميع سأبقى هنا!');
+            const commandsInput = new TextInputBuilder().setCustomId('mc_commands').setLabel('أوامر/رسائل الدخول (سطر لكل أمر)').setStyle(TextInputStyle.Paragraph).setRequired(false).setPlaceholder('/login mypassword\nمرحباً بالجميع!');
 
             modal.addComponents(
                 new ActionRowBuilder().addComponents(ipInput),
@@ -113,11 +106,12 @@ client.on('interactionCreate', async interaction => {
                 new ActionRowBuilder().addComponents(commandsInput)
             );
 
+            // إظهار النافذة المنبثقة كاستجابة فورية لاختيار القائمة
             await interaction.showModal(modal);
         }
     }
 
-    // رابعاً: معالجة البيانات المدخلة وتشغيل بوت ماين كرافت (Mineflayer)
+    // 3. استلام البيانات من النافذة المنبثقة وتشغيل البوت
     if (interaction.isModalSubmit()) {
         if (interaction.customId === 'bot_details_modal') {
             await interaction.deferReply({ ephemeral: true });
@@ -128,20 +122,19 @@ client.on('interactionCreate', async interaction => {
             const username = interaction.fields.getTextInputValue('mc_username');
             const commandsText = interaction.fields.getTextInputValue('mc_commands');
 
-            // جلب الإصدار المحفوظ سابقاً للجلسة
             const session = userSessions.get(interaction.user.id);
             const version = session ? session.version : '1.20.4';
 
-            await interaction.followup({ content: `🚀 جاري تشغيل البوت **${username}** ومحاولة الدخول إلى \`${ip}:${port}\` بإصدار \`${version}\`...` });
+            await interaction.followup({ content: `🚀 جاري تشغيل البوت **${username}** وإرساله إلى \`${ip}:${port}\` بإصدار \`${version}\`...` });
 
-            // استدعاء محرك Mineflayer لإنشاء اللاعب الوهمي وإدخاله السيرفر
-            createMinecraftBot(ip, port, username, version, commandsText, interaction);
+            // استدعاء محرك Mineflayer
+            createMinecraftBot(ip, port, username, version, commandsText);
         }
     }
 });
 
-// 4. دالة تشغيل بوت ماين كرافت وإرسال الأوامر والرسائل
-function createMinecraftBot(host, port, username, version, commandsText, interaction) {
+// دالة محرك Mineflayer
+function createMinecraftBot(host, port, username, version, commandsText) {
     const mcBot = mineflayer.createBot({
         host: host,
         port: port,
@@ -149,28 +142,22 @@ function createMinecraftBot(host, port, username, version, commandsText, interac
         version: version
     });
 
-    // عند دخول البوت إلى السيرفر بنجاح (Spawn)
     mcBot.on('spawn', () => {
         console.log(`[Mineflayer] البوت ${username} دخل السيرفر بنجاح.`);
         
-        // إذا كان المستخدم قد كتب أوامر أو رسائل دخول تلقائية
         if (commandsText) {
             const lines = commandsText.split('\n');
             lines.forEach((line, index) => {
                 setTimeout(() => {
-                    if (line.trim().startsWith('/')) {
-                        // تنفيذ الأمر داخل السيرفر (سواء كان سلاش عادي أو أمر نظام)
-                        mcBot.chat(line.trim());
-                    } else {
-                        // إرسال رسالة شات عادية للاعبين
-                        mcBot.chat(line.trim());
+                    const textToSend = line.trim();
+                    if (textToSend) {
+                        mcBot.chat(textToSend); // Mineflayer يميز تلقائياً بين الأوامر (/) والرسائل العادية
                     }
-                }, (index + 1) * 1500); // تأخير زمني 1.5 ثانية بين كل سطر تجنباً للحظر المفرط (Spam)
+                }, (index + 1) * 1500); 
             });
         }
     });
 
-    // التعامل مع الأخطاء أو الطرد من السيرفر
     mcBot.on('error', (err) => {
         console.error(`[Mineflayer Error]: ${err.message}`);
     });
@@ -180,7 +167,6 @@ function createMinecraftBot(host, port, username, version, commandsText, interac
     });
 }
 
-// تشغيل البوت عبر توكن الديسكورد
 if (TOKEN) {
     client.login(TOKEN);
 } else {
