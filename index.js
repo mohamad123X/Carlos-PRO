@@ -13,7 +13,6 @@ const {
 } = require('discord.js');
 const mineflayer = require('mineflayer');
 
-// إعداد صلاحيات البوت الأساسية
 const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
@@ -22,11 +21,9 @@ const client = new Client({
     ]
 });
 
-// متغير مؤقت لتخزين بيانات الجلسة 
 const userSessions = new Map();
 const TOKEN = process.env.DISCORD_TOKEN;
 
-// تعديل الحدث إلى clientReady
 client.on('clientReady', async () => {
     console.log(`🔥 تم تشغيل بوت الديسكورد بنجاح باسم: ${client.user.tag}`);
     const commands = [{ name: 'spawn', description: 'إدخال بوت لاعب إلى سيرفر ماين كرافت الخاص بك' }];
@@ -39,17 +36,15 @@ client.on('clientReady', async () => {
     }
 });
 
-// التعامل مع التفاعلات
 client.on('interactionCreate', async interaction => {
     
-    // 1. أمر التشغيل /spawn وإنشاء قائمة الإصدارات
     if (interaction.isChatInputCommand()) {
         if (interaction.commandName === 'spawn') {
             const selectMenu = new StringSelectMenuBuilder()
                 .setCustomId('select_version')
-                .setPlaceholder('اختر إصدار سيرفر ماين كرافت...')
+                .setPlaceholder('اختر إصدار السيرفر (يُفضل اختيار التلقائي)...')
                 .addOptions(
-                    // تم إضافة الإصدار المطلوب بناءً على الصورة مع إصدارات أخرى مدعومة
+                    new StringSelectMenuOptionBuilder().setLabel('🔍 تلقائي (Auto Detect) - مستحسن').setValue('auto'),
                     new StringSelectMenuOptionBuilder().setLabel('1.8.9').setValue('1.8.9'),
                     new StringSelectMenuOptionBuilder().setLabel('1.12.2').setValue('1.12.2'),
                     new StringSelectMenuOptionBuilder().setLabel('1.16.5').setValue('1.16.5'),
@@ -57,8 +52,7 @@ client.on('interactionCreate', async interaction => {
                     new StringSelectMenuOptionBuilder().setLabel('1.19.4').setValue('1.19.4'),
                     new StringSelectMenuOptionBuilder().setLabel('1.20.1').setValue('1.20.1'),
                     new StringSelectMenuOptionBuilder().setLabel('1.20.4').setValue('1.20.4'),
-                    new StringSelectMenuOptionBuilder().setLabel('1.21').setValue('1.21'),
-                    new StringSelectMenuOptionBuilder().setLabel('26.1.2').setValue('26.1.2') // الإصدار المحدد في الصورة
+                    new StringSelectMenuOptionBuilder().setLabel('1.21').setValue('1.21')
                 );
 
             const row = new ActionRowBuilder().addComponents(selectMenu);
@@ -71,16 +65,16 @@ client.on('interactionCreate', async interaction => {
         }
     }
 
-    // 2. معالجة اختيار الإصدار وإظهار النافذة المنبثقة
     if (interaction.isStringSelectMenu()) {
         if (interaction.customId === 'select_version') {
             const selectedVersion = interaction.values[0];
-            
             userSessions.set(interaction.user.id, { version: selectedVersion });
+
+            const displayVersion = selectedVersion === 'auto' ? 'فحص تلقائي' : selectedVersion;
 
             const modal = new ModalBuilder()
                 .setCustomId('bot_details_modal')
-                .setTitle(`بيانات الدخول (إصدار ${selectedVersion})`);
+                .setTitle(`بيانات الدخول (${displayVersion})`);
 
             const ipInput = new TextInputBuilder().setCustomId('mc_ip').setLabel('عنوان السيرفر (IP)').setStyle(TextInputStyle.Short).setRequired(true).setPlaceholder('مثال: my-server.magmanode.net');
             const portInput = new TextInputBuilder().setCustomId('mc_port').setLabel('البورت (Port)').setStyle(TextInputStyle.Short).setRequired(false).setPlaceholder('25565 (اتركه فارغاً للافتراضي)');
@@ -98,7 +92,6 @@ client.on('interactionCreate', async interaction => {
         }
     }
 
-    // 3. استلام البيانات من النافذة المنبثقة وتشغيل البوت
     if (interaction.isModalSubmit()) {
         if (interaction.customId === 'bot_details_modal') {
             await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
@@ -110,25 +103,30 @@ client.on('interactionCreate', async interaction => {
             const commandsText = interaction.fields.getTextInputValue('mc_commands');
 
             const session = userSessions.get(interaction.user.id);
-            const version = session ? session.version : '1.20.4';
+            const version = session ? session.version : 'auto';
 
-            await interaction.followUp({ content: `🚀 جاري محاولة تشغيل البوت **${username}** وإرساله إلى \`${ip}:${port}\`...` });
+            await interaction.followUp({ content: `🚀 جاري فحص السيرفر وتشغيل البوت **${username}** وإرساله إلى \`${ip}:${port}\`...` });
 
-            // استدعاء محرك Mineflayer مع تمرير تفاعل الديسكورد
             createMinecraftBot(ip, port, username, version, commandsText, interaction);
         }
     }
 });
 
-// دالة محرك Mineflayer المصححة والمحمية من الانهيار بالكامل
 function createMinecraftBot(host, port, username, version, commandsText, interaction) {
     try {
-        const mcBot = mineflayer.createBot({
+        const botOptions = {
             host: host,
             port: port,
             username: username,
-            version: version // تم تصحيح البروتوكول لدعم هذا الإصدار
-        });
+            // تفعيل نظام الحسابات المكركة لضمان قبول البوت في السيرفرات العادية
+            auth: 'offline' 
+        };
+
+        if (version && version !== 'auto') {
+            botOptions.version = version;
+        }
+
+        const mcBot = mineflayer.createBot(botOptions);
 
         mcBot.on('spawn', () => {
             console.log(`[Mineflayer] البوت ${username} دخل السيرفر بنجاح.`);
@@ -146,25 +144,37 @@ function createMinecraftBot(host, port, username, version, commandsText, interac
             }
         });
 
-        // إمساك أخطاء الاتصال الداخلي
         mcBot.on('error', async (err) => {
             console.error(`[Mineflayer Error]: ${err.message}`);
             try {
                 await interaction.followUp({ content: `❌ فشل اتصال لاعب ماين كرافت: ${err.message}` });
-            } catch (e) { console.log("تعذر إرسال رسالة الخطأ للديسكورد") }
+            } catch (e) { console.log("تعذر إرسال رسالة الخطأ") }
         });
 
+        // تحسين قراءة حدث الطرد لتحويل الكائن المعقد إلى نص مفهوم
         mcBot.on('kicked', async (reason) => {
-            console.log(`[Mineflayer Kicked]: تم طرد البوت: ${reason}`);
+            // تحويل سبب الطرد (سواء كان نصاً أو كائناً) إلى صيغة نصية واضحة للسجل وللديسكورد
+            const kickReasonClean = typeof reason === 'object' ? JSON.stringify(reason) : String(reason);
+            console.log(`[Mineflayer Kicked]: تم طرد البوت. السبب الخام: ${kickReasonClean}`);
+            
+            // محاولة استخلاص النص المفهوم إذا كان الهيكل يحتوي على حقل text (نظام ماين كرافت القياسي للرسائل)
+            let friendlyReason = "تعذر تحديد السبب بدقة، راجع سجلات المنصة.";
+            if (reason && reason.text) {
+                friendlyReason = reason.text;
+            } else if (reason && reason.extra && reason.extra[0]) {
+                friendlyReason = reason.extra.map(e => e.text || '').join('');
+            } else {
+                friendlyReason = kickReasonClean;
+            }
+
             try {
-                await interaction.followUp({ content: `⚠️ تم طرد لاعب ماين كرافت من السيرفر. السبب: ${reason}` });
+                await interaction.followUp({ content: `⚠️ تم طرد لاعب ماين كرافت من السيرفر.\n**السبب المكتشف:** ${friendlyReason}` });
             } catch (e) { console.log("تعذر إرسال رسالة الطرد للديسكورد") }
         });
 
     } catch (error) {
-        // حماية الخادم من الانهيار
         console.error(`[Fatal Creation Error]: ${error.message}`);
-        interaction.followUp({ content: `❌ خطأ كارثي في إنشاء البوت. السبب: ${error.message}` });
+        interaction.followUp({ content: `❌ خطأ في إنشاء البوت: ${error.message}` });
     }
 }
 
