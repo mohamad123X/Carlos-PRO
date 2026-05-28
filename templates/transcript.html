@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Transcript // #{{ data.channel_name }}</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { background-color: #030712; }
+        .neon-glow { box-shadow: 0 0 20px rgba(168, 85, 247, 0.2); }
+        .glass-panel { background: rgba(255, 255, 255, 0.02); backdrop-filter: blur(8px); }
+    </style>
+</head>
+<body class="text-slate-100 font-sans min-h-screen p-6">
+
+    <div class="max-w-4xl mx-auto space-y-6">
+        
+        <div class="glass-panel border border-slate-800 rounded-2xl p-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+            <div>
+                <span class="text-xs font-mono uppercase tracking-widest text-purple-400 font-bold">Secure Core Archive</span>
+                <h1 class="text-2xl font-black text-cyan-400">#{{ data.channel_name }}</h1>
+                <p class="text-xs text-slate-400 font-mono mt-1">Closed by: <span class="text-slate-200">{{ data.closed_by }}</span> | {{ data.closed_at }}</p>
+            </div>
+            
+            <div class="flex space-x-3 w-full md:w-auto">
+                <button onclick="window.print()" class="flex-1 md:flex-none px-4 py-2 bg-slate-800 hover:bg-slate-700 transition rounded-xl text-xs font-mono font-bold flex items-center justify-center space-x-2 border border-slate-700">
+                    <span>🖨️ Save as PDF / Print</span>
+                </button>
+                <a href="/transcript/{{ channel_id }}/download" class="flex-1 md:flex-none px-4 py-2 bg-gradient-to-r from-cyan-500 to-purple-600 hover:opacity-90 transition rounded-xl text-xs font-mono font-bold flex items-center justify-center space-x-2 text-white shadow-lg">
+                    <span>📥 Download Data (JSON)</span>
+                </a>
+            </div>
+        </div>
+
+        <div class="glass-panel border border-slate-800 rounded-2xl p-6 space-y-4">
+            <div class="text-xs font-mono text-slate-500 border-b border-slate-800/60 pb-3 uppercase tracking-wider">
+                Pipeline Stream: {{ data.total_messages }} records loaded.
+            </div>
+
+            <div class="space-y-4 max-h-[70vh] overflow-y-auto pr-2">
+                {% for msg in data.messages %}
+                <div class="flex items-start space-x-3 p-2 rounded-xl hover:bg-white/[0.01] transition">
+                    <img src="{{ msg.author_avatar }}" alt="Avatar" class="w-10 h-10 rounded-full bg-slate-800 border border-slate-700/50 object-cover shrink-0">
+                    
+                    <div class="space-y-0.5">
+                        <div class="flex items-baseline space-x-2">
+                            <span class="font-bold text-sm {% if msg.is_bot %}text-purple-400{% else %}text-slate-200{% endif %}">
+                                {{ msg.author_name }}
+                            </span>
+                            {% if msg.is_bot %}
+                            <span class="bg-blue-500/10 text-blue-400 border border-blue-500/20 text-[10px] px-1 rounded font-mono uppercase">BOT</span>
+                            {% endif %}
+                            <span class="text-[10px] text-slate-500 font-mono">{{ msg.timestamp }}</span>
+                        </div>
+                        <p class="text-sm text-slate-300 leading-relaxed break-words whitespace-pre-wrap">{{ msg.content }}</p>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <div class="text-center text-[10px] font-mono text-slate-600">
+            NetPulse Automated Cryptographic Transcript Subsystem • Confidentially Guaranteed
+        </div>
+    </div>
+
+</body>
+</html>
