@@ -151,6 +151,26 @@ class RatingView(discord.ui.View):
         await asyncio.sleep(2.0)
         await interaction.channel.delete()
 
+    @discord.ui.button(label="1 ⭐", style=discord.ButtonStyle.secondary, custom_id="rate_1")
+    async def rate_one(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self.process_rating(interaction, 1)
+
+    @discord.ui.button(label="2 ⭐", style=discord.ButtonStyle.secondary, custom_id="rate_2")
+    async def rate_two(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self.process_rating(interaction, 2)
+
+    @discord.ui.button(label="3 ⭐", style=discord.ButtonStyle.secondary, custom_id="rate_3")
+    async def rate_three(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self.process_rating(interaction, 3)
+
+    @discord.ui.button(label="4 ⭐", style=discord.ButtonStyle.secondary, custom_id="rate_4")
+    async def rate_four(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self.process_rating(interaction, 4)
+
+    @discord.ui.button(label="5 ⭐", style=discord.ButtonStyle.success, custom_id="rate_5")
+    async def rate_five(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self.process_rating(interaction, 5)
+
     async def on_timeout(self):
         if not self.rated:
             try:
@@ -397,11 +417,12 @@ bot = TicketBot()
 async def on_ready():
     print(f"✨ Cyberpunk Core Engine online as {bot.user}")
 
-# الأَمر الجديد والديناميكي لإعداد البوت داخل أي سيرفر يدخله
+
+# 🔥 الأَمر الجديد والديناميكي المطور بالكامل لإعداد البوت وتثبيت الغرفة تلقائياً 🔥
 @bot.command(name="setup")
 @commands.has_permissions(administrator=True)
 async def setup_verify_panel(ctx, category_id: int, staff_role_id: int, log_channel_id: int):
-    # التأكد من صحة الآيديهات الممررة داخل السيرفر الحالي
+    # 1. التأكد من صحة وجود القنوات والرتب في السيرفر الحالي لضمان عدم حدوث أخطاء
     category = ctx.guild.get_channel(category_id)
     role = ctx.guild.get_role(staff_role_id)
     log_channel = ctx.guild.get_channel(log_channel_id)
@@ -410,17 +431,42 @@ async def setup_verify_panel(ctx, category_id: int, staff_role_id: int, log_chan
         await ctx.send("❌ **خطأ:** يرجى التأكد من أن الآيديهات صحيحة وتعود لقنوات ورتب موجودة فعلياً في هذا السيرفر!")
         return
 
-    # حفظ إعدادات السيرفر الحالي في قاعدة البيانات المصغرة
+    # 2. حفظ إعدادات السيرفر الحالي في قاعدة البيانات المصغرة ليدعم التعددية
     save_guild_config(ctx.guild.id, category_id, staff_role_id, log_channel_id)
 
+    # 3. إنشاء روم علنية مغلقة للاعضاء تلقائياً ليضغطوا منها على زر فتح التذكرة والتحقق
+    overwrites = {
+        ctx.guild.default_role: discord.PermissionOverwrite(read_messages=True, send_messages=False), # الأعضاء يقرأون البانر ولا يرسلون رسائل
+        ctx.guild.me: discord.PermissionOverwrite(read_messages=True, send_messages=True, embed_links=True)
+    }
+    
+    panel_channel = await ctx.guild.create_text_channel(
+        name="🎮-verify-here",
+        position=0,
+        overwrites=overwrites,
+        topic="NetPulse Setup - Open tickets and verify accounts here."
+    )
+
+    # 4. بناء البانر الترحيبي الأنيق وإرساله مع أزرار التحكم المستمرة
     embed = discord.Embed(
         title="🎮 Account Verification Hub",
-        description="اضغط على الزر بالأسفل لفتح تكت تواصل ومزامنة حسابك.",
+        description=(
+            "مرحباً بك في مركز التحقق والدعم الفني التلقائي المطور للسيرفر!\n\n"
+            "**لربط ومزامنة حساب ماين كرافت الخاص بك أو لفتح تذكرة دعم:**\n"
+            "اضغط على الزر المرفق بالأسفل `Open Assistance Ticket` وسيقوم البوت بإنشاء تذكرة مشفرة وخاصة بك فوراً لمساعدتك داخل قنوات الدعم.\n\n"
+            "*NetPulse Automated Cryptographic Pipeline*"
+        ),
         color=0xbf00ff
     )
-    await ctx.send(embed=embed, view=MainPersistentView())
-    await ctx.message.delete()
-    await ctx.send("✅ **تم حفظ إعدادات السيرفر بنجاح، وتم إنشاء لوحة التكت!**", delete_after=5)
+    embed.set_footer(text="NetPulse Systems Center • اضغط مرة واحدة وانتظر بضع ثوانٍ.")
+    
+    # إرسال البانر داخل القناة الجديدة المنشأة تلقائياً
+    await panel_channel.send(embed=embed, view=MainPersistentView())
+    
+    # تنظيف شات الإدارة وحذف أمر الكتابة وحقن رسالة تأكيد مؤقتة
+    try: await ctx.message.delete()
+    except: pass
+    await ctx.send(f"✅ **تم تثبيت وإعداد نظام البوت بنجاح!**\nتم إنشاء روم التحقق هنا: {panel_channel.mention}\nوتم حفظ الإعدادات في ملف التكوين بنجاح.", delete_after=10)
 
 if __name__ == "__main__":
     bot.run(BOT_TOKEN)
