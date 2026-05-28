@@ -364,3 +364,117 @@ async def generate_and_save_transcript(channel, closed_by_user):
     with open(file_path, "w", encoding="utf-8") as f:
         json.dump(transcript_data, f, indent=4, ensure_ascii=False)
     print(f"💾 Secure Transcript archived successfully: {file_path}")
+import discord
+from discord.ext import commands
+import os
+import json
+import asyncio
+from datetime import datetime
+
+# --- الإعدادات الإضافية للمهام والأقسام ---
+# يمكنك إضافة أيدي الرتب لكل قسم لتنبيههم بشكل خاص
+DEPARTMENTS = {
+    "technical": {"label": "الدعم الفني التقني", "emoji": "💻", "color": 0x00d9ff},
+    "report": {"label": "إبلاغ عن لاعب / مخالفة", "emoji": "🚫", "color": 0xff4d4d},
+    "billing": {"label": "مشاكل الشراء والمتجر", "emoji": "💰", "color": 0x4dff88},
+    "general": {"label": "استفسار عام / أخرى", "emoji": "📩", "color": 0xffd900}
+}
+
+class ProblemCategorySelect(discord.ui.Select):
+    """قائمة منسدلة لاختيار نوع المشكلة فور فتح التيكيت"""
+    def __init__(self):
+        options = [
+            discord.SelectOption(label=v["label"], value=k, emoji=v["emoji"]) 
+            for k, v in DEPARTMENTS.items()
+        ]
+        super().__init__(placeholder="🔍 اختر قسم المساعدة المطلوب...", min_values=1, max_values=1, options=options)
+
+    async def callback(self, interaction: discord.Interaction):
+        category = self.values[0]
+        dept = DEPARTMENTS[category]
+        
+        # تعطيل القائمة بعد الاختيار لمنع التلاعب
+        self.view.clear_items()
+        
+        # تحديث القناة بناءً على القسم
+        await interaction.channel.edit(name=f"{dept['emoji']}-{category}-{interaction.user.name}")
+        
+        embed = discord.Embed(
+            title=f"{dept['emoji']} قسم: {dept['label']}",
+            description=(
+                f"مرحباً {interaction.user.mention}، تم توجيه طلبك للقسم المختص.\n"
+                "يرجى كتابة مشكلتك بالتفصيل وانتظار الإداري المسؤول.\n\n"
+                "**إجراءات متاحة:**\n"
+                "🎮 اضغط على 'Verify' لربط حسابك.\n"
+                "🛠️ سيقوم أحد الإداريين بعمل Claim للتيكيت قريباً."
+            ),
+            color=dept['color']
+        )
+        
+        # إرسال رسالة التنبيه الجديدة مع أزرار التحكم (التحقق، الاستلام، الإغلاق)
+        await interaction.response.edit_message(embed=embed, view=TicketOptionsView())
+
+class TicketOptionsView(discord.ui.View):
+    """الأزرار التي تظهر داخل التيكيت بعد اختيار القسم"""
+    def __init__(self):
+        super().__init__(timeout=None)
+
+    @discord.ui.button(label="Claim (للإدارة)", style=discord.ButtonStyle.blurple, custom_id="btn_claim", emoji="🛠️")
+    async def claim(self, interaction: discord.Interaction, button: discord.ui.Button):
+        # (نفس كود الـ Claim السابق مع حساب الـ SLA)
+        if not any(r.id == int(os.getenv("STAFF_ROLE_ID")) for r in interaction.user.roles):
+            return await interaction.response.send_message("❌ هذا الزر للموظفين فقط!", ephemeral=True)
+        
+        button.disabled = True
+        button.label = f"استلمها: {interaction.user.name}"
+        await interaction.response.edit_message(view=self)
+        await interaction.followup.send(f"✅ الإداري {interaction.user.mention} استلم التيكيت وسيقوم بمساعدتك الآن.")
+
+    @discord.ui.button(label="التحقق من الحساب", style=discord.ButtonStyle.green, custom_id="btn_verify", emoji="🎮")
+    async def verify(self, interaction: discord.Interaction, button: discord.ui.Button):
+        from bot import VerificationModal # استدعاء المودال الحديث
+        await interaction.response.send_modal(VerificationModal())
+
+    @discord.ui.button(label="إغلاق وتقييم", style=discord.ButtonStyle.danger, custom_id="btn_close", emoji="🔒")
+    async def close(self, interaction: discord.Interaction, button: discord.ui.Button):
+        # استدعاء نظام التقييم والـ Transcript الذي برمجناه سابقاً
+        await start_closure_protocol(interaction)
+
+class ProblemCategoryView(discord.ui.View):
+    """واجهة تحتوي على القائمة المنسدلة فقط"""
+    def __init__(self):
+        super().__init__(timeout=None)
+        self.add_item(ProblemCategorySelect())
+
+class MainPersistentView(discord.ui.View):
+    """اللوحة الرئيسية التي توضع في روم #التحقق"""
+    def __init__(self):
+        super().__init__(timeout=None)
+
+    @discord.ui.button(label="إفتح تيكيت مساعدة", style=discord.ButtonStyle.primary, custom_id="main_open", emoji="🎟️")
+    async def open_ticket(self, interaction: discord.Interaction, button: discord.ui.Button):
+        guild = interaction.guild
+        category_id = int(os.getenv("TICKET_CATEGORY_ID"))
+        category = guild.get_channel(category_id)
+
+        # إنشاء القناة بصلاحيات خاصة
+        overwrites = {
+            guild.default_role: discord.PermissionOverwrite(read_messages=False),
+            interaction.user: discord.PermissionOverwrite(read_messages=True, send_messages=True),
+            guild.me: discord.PermissionOverwrite(manage_channels=True, read_messages=True)
+        }
+        
+        channel = await guild.create_text_channel(
+            name=f"🎫-waiting-{interaction.user.name}",
+            category=category,
+            overwrites=overwrites
+        )
+
+        # إرسال قائمة اختيار الأقسام فوراً
+        embed = discord.Embed(
+            title="⚡ نظام تيكتات NetPulse",
+            description="مرحباً بك! لكي نتمكن من مساعدتك بشكل أسرع، يرجى اختيار **نوع المشكلة** من القائمة أدناه:",
+            color=0xbf00ff
+        )
+        await channel.send(content=interaction.user.mention, embed=embed, view=ProblemCategoryView())
+        await interaction.response.send_message(f"✅ تم فتح التيكيت: {channel.mention}", ephemeral=True)
