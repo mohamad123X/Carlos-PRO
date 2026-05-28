@@ -1,0 +1,22 @@
+{
+    "channel_name": "ticket-mohammed",
+    "closed_by": "Admin-Shadow",
+    "closed_at": "2026-05-28 09:50",
+    "total_messages": 2,
+    "messages": [
+        {
+            "author_name": "Mohammed",
+            "author_avatar": "https://cdn.discordapp.com/embed/avatars/1.png",
+            "is_bot": false,
+            "timestamp": "10:15 AM",
+            "content": "Hello, I need assistance with my server connection."
+        },
+        {
+            "author_name": "NetPulse Support",
+            "author_avatar": "https://cdn.discordapp.com/embed/avatars/2.png",
+            "is_bot": true,
+            "timestamp": "10:16 AM",
+            "content": "Welcome! Our team is inspecting your node routing core now."
+        }
+    ]
+}
