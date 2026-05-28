@@ -327,3 +327,40 @@ async def setup_verify_panel(ctx):
 
 if __name__ == "__main__":
     bot.run(BOT_TOKEN)
+# --- ADD THIS LOGIC INSIDE THE TICKETING SYSTEM (BEFORE CHANNEL DELETION) ---
+# This code block goes inside the 'close_button' or inside the 'RatingView' when channel is ready to be wiped.
+
+async def generate_and_save_transcript(channel, closed_by_user):
+    """
+    Asynchronously fetches all message history from the ticket channel
+    and compiles it into a structured JSON archive.
+    """
+    messages_log = []
+    
+    # Fetch all messages from oldest to newest
+    async for msg in channel.history(limit=None, oldest_first=True):
+        time_str = msg.created_at.strftime("%Y-%m-%d %H:%M:%S")
+        messages_log.append({
+            "author_name": str(msg.author.name),
+            "author_id": str(msg.author.id),
+            "author_avatar": str(msg.author.display_avatar.url) if msg.author.avatar else "https://i.imgur.com/0z8M08X.png",
+            "content": msg.content,
+            "timestamp": time_str,
+            "is_bot": msg.author.bot
+        })
+    
+    transcript_data = {
+        "channel_id": str(channel.id),
+        "channel_name": str(channel.name),
+        "closed_by": str(closed_by_user.name),
+        "closed_at": datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"),
+        "total_messages": len(messages_log),
+        "messages": messages_log
+    }
+    
+    # Save structurally into 'transcripts' directory
+    os.makedirs("transcripts", exist_ok=True)
+    file_path = f"transcripts/{channel.id}.json"
+    with open(file_path, "w", encoding="utf-8") as f:
+        json.dump(transcript_data, f, indent=4, ensure_ascii=False)
+    print(f"💾 Secure Transcript archived successfully: {file_path}")
