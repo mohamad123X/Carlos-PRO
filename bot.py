@@ -14,6 +14,8 @@ SECRET_TOKEN = os.getenv("SECRET_TOKEN")
 TICKET_CATEGORY_ID = os.getenv("TICKET_CATEGORY_ID")
 STAFF_ROLE_ID = os.getenv("STAFF_ROLE_ID")
 STAFF_LOG_CHANNEL_ID = os.getenv("STAFF_LOG_CHANNEL_ID")
+# الرابط الخاص بواجهة السجلات على ريلواي (مثال: https://your-app.up.railway.app)
+DASHBOARD_URL = os.getenv("DASHBOARD_URL", "https://your-railway-url.up.railway.app")
 
 # Critical environment validation
 if not all([BOT_TOKEN, SECRET_TOKEN, TICKET_CATEGORY_ID, STAFF_ROLE_ID, STAFF_LOG_CHANNEL_ID]):
@@ -116,12 +118,19 @@ class RatingView(discord.ui.View):
         handler_user = interaction.guild.get_member(self.handler_id)
         handler_name = handler_user.mention if handler_user else f"ID: {self.handler_id}"
         
+        # إنشاء زر الرابط المباشر لواجهتك المخصصة للسجلات
+        link_view = discord.ui.View()
+        link_view.add_item(discord.ui.Button(
+            label="👁️ عرض سجل التكت / View Transcript", 
+            url=f"{DASHBOARD_URL}/transcript/{interaction.channel.id}"
+        ))
+        
         log_embed = discord.Embed(
             title="⭐ Staff Performance Rated",
             description=f"**Staff:** {handler_name}\n**Rating:** {stars} / 5 ⭐\n**Total Closed:** {data['tickets_handled']}\n**Average Metrics:** {avg_stars} ⭐",
             color=0x00ff00
         )
-        await self.log_channel.send(embed=log_embed)
+        await self.log_channel.send(embed=log_embed, view=link_view)
         
         await interaction.response.send_message(f"✅ Rated {stars} stars. Saving transcript and wiping channel...", ephemeral=False)
         await generate_and_save_transcript(interaction.channel, interaction.user)
@@ -217,6 +226,21 @@ class TicketOptionsView(discord.ui.View):
         if not handler_id:
             await interaction.response.send_message("Wiping channel instantly. Directing unassigned log to transcripts archive...")
             await generate_and_save_transcript(interaction.channel, interaction.user)
+            
+            # إرسال سجل التكت حتى لو لم يكن التكت مُعيناً لأحد الإداريين
+            if log_channel:
+                link_view = discord.ui.View()
+                link_view.add_item(discord.ui.Button(
+                    label="👁️ عرض سجل التكت / View Transcript", 
+                    url=f"{DASHBOARD_URL}/transcript/{interaction.channel.id}"
+                ))
+                log_embed = discord.Embed(
+                    title="🔒 Ticket Closed (Unassigned)",
+                    description=f"**Closed By:** {interaction.user.mention}",
+                    color=0xff0000
+                )
+                await log_channel.send(embed=log_embed, view=link_view)
+                
             await asyncio.sleep(2)
             await interaction.channel.delete()
             return
