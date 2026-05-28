@@ -1,8 +1,21 @@
-# Core library for Discord Bot API integration
+# ==========================================
+# 🔥 NetPulse Core Automation - Dependencies
+# ==========================================
+
+# --- DISCORD BOT BOT ENGINE ---
+# Core library for Discord Bot API integration & interaction components
 discord.py>=2.4.0
 
-# Asynchronous HTTP client library to connect with the Minecraft plugin API
+# --- MINECRAFT API BRIDGE ---
+# Asynchronous HTTP client library to securely connect with the Paper/Bungee API
 aiohttp>=3.10.0
+
+# --- WEB DASHBOARD LAYER (FASTAPI) ---
+# High-performance ASGI web framework for the admin dashboard
 fastapi>=0.110.0
+
+# Template engine to render cinematic HTML layouts & transcripts
 jinja2>=3.1.3
+
+# Production-ready ASGI web server implementation for FastAPI
 uvicorn>=0.28.0
