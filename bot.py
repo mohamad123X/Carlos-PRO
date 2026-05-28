@@ -1,4 +1,5 @@
 import discord
+from discord import app_commands  # تم إضافة مكتبة أوامر السلاش
 from discord.ext import commands
 import aiohttp
 import json
@@ -11,15 +12,12 @@ from datetime import datetime
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 MINECRAFT_API_URL = os.getenv("MINECRAFT_API_URL", "http://your-plugin-ip:8080/api/verify")
 SECRET_TOKEN = os.getenv("SECRET_TOKEN")
-# الرابط الخاص بواجهة السجلات على ريلواي (ثابت لكل السيرفرات)
 DASHBOARD_URL = os.getenv("DASHBOARD_URL", "https://your-railway-url.up.railway.app")
 
-# Critical environment validation (فقط للمتغيرات العالمية الثابتة)
 if not all([BOT_TOKEN, SECRET_TOKEN]):
     print("❌ Critical Error: Missing required global environment variables (BOT_TOKEN, SECRET_TOKEN).", file=sys.stderr)
     sys.exit(1)
 
-# --- CONFIGURABLE PRESET DEPARTMENTS ---
 DEPARTMENTS = {
     "technical": {"label": "Technical & Plugin Support", "emoji": "💻", "color": 0x00d9ff},
     "report": {"label": "Player Report / Abuse", "emoji": "🚫", "color": 0xff4d4d},
@@ -27,12 +25,10 @@ DEPARTMENTS = {
     "general": {"label": "General Inquiry", "emoji": "📩", "color": 0xffd900}
 }
 
-# --- PERSISTENT DATA DRIVERS ---
 STATS_FILE = "staff_stats.json"
-CONFIG_FILE = "guild_configs.json" # ملف حفظ إعدادات السيرفرات المختلفة
-active_tickets_tracking = {}  # Format: { channel_id: {creator_id, handler_id, created_at, online_staff} }
+CONFIG_FILE = "guild_configs.json"
+active_tickets_tracking = {}
 
-# دالات التحكم بإعدادات السيرفرات المتعددة
 def load_guild_configs():
     if os.path.exists(CONFIG_FILE):
         try:
@@ -70,16 +66,13 @@ def save_staff_rating(staff_id, stars):
     staff_key = str(staff_id)
     if staff_key not in stats:
         stats[staff_key] = {"total_stars": 0, "tickets_handled": 0}
-    
     stats[staff_key]["total_stars"] += stars
     stats[staff_key]["tickets_handled"] += 1
-    
     with open(STATS_FILE, "w") as f:
         json.dump(stats, f, indent=4)
     return stats[staff_key]
 
 async def generate_and_save_transcript(channel, closed_by_user):
-    """Compiles complete textual history into a clean JSON for Web Dashboard analytics."""
     messages_log = []
     async for msg in channel.history(limit=None, oldest_first=True):
         time_str = msg.created_at.strftime("%Y-%m-%d %H:%M:%S")
@@ -91,7 +84,6 @@ async def generate_and_save_transcript(channel, closed_by_user):
             "timestamp": time_str,
             "is_bot": msg.author.bot
         })
-    
     transcript_data = {
         "channel_id": str(channel.id),
         "channel_name": str(channel.name),
@@ -100,17 +92,14 @@ async def generate_and_save_transcript(channel, closed_by_user):
         "total_messages": len(messages_log),
         "messages": messages_log
     }
-    
     os.makedirs("transcripts", exist_ok=True)
-    file_path = f"transcripts/{channel.id}.json"
-    with open(file_path, "w", encoding="utf-8") as f:
+    with open(f"transcripts/{channel.id}.json", "w", encoding="utf-8") as f:
         json.dump(transcript_data, f, indent=4, ensure_ascii=False)
 
 
 # --- INTERACTIVE UI COMPONENTS ---
 
 class RatingView(discord.ui.View):
-    """Generates 5 contextual rating buttons for performance assessment."""
     def __init__(self, handler_id, creator_id, log_channel):
         super().__init__(timeout=15.0)
         self.handler_id = handler_id
@@ -122,21 +111,15 @@ class RatingView(discord.ui.View):
         if interaction.user.id != self.creator_id:
             await interaction.response.send_message("❌ Only the ticket creator can rate performance.", ephemeral=True)
             return
-
         self.rated = True
         self.stop()
-        
         data = save_staff_rating(self.handler_id, stars)
         avg_stars = round(data["total_stars"] / data["tickets_handled"], 2)
-        
         handler_user = interaction.guild.get_member(self.handler_id)
         handler_name = handler_user.mention if handler_user else f"ID: {self.handler_id}"
         
         link_view = discord.ui.View()
-        link_view.add_item(discord.ui.Button(
-            label="👁️ عرض سجل التكت / View Transcript", 
-            url=f"{DASHBOARD_URL}/transcript/{interaction.channel.id}"
-        ))
+        link_view.add_item(discord.ui.Button(label="👁️ عرض سجل التكت / View Transcript", url=f"{DASHBOARD_URL}/transcript/{interaction.channel.id}"))
         
         log_embed = discord.Embed(
             title="⭐ Staff Performance Rated",
@@ -152,30 +135,19 @@ class RatingView(discord.ui.View):
         await interaction.channel.delete()
 
     @discord.ui.button(label="1 ⭐", style=discord.ButtonStyle.secondary, custom_id="rate_1")
-    async def rate_one(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await self.process_rating(interaction, 1)
-
+    async def rate_one(self, interaction: discord.Interaction, button: discord.ui.Button): await self.process_rating(interaction, 1)
     @discord.ui.button(label="2 ⭐", style=discord.ButtonStyle.secondary, custom_id="rate_2")
-    async def rate_two(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await self.process_rating(interaction, 2)
-
+    async def rate_two(self, interaction: discord.Interaction, button: discord.ui.Button): await self.process_rating(interaction, 2)
     @discord.ui.button(label="3 ⭐", style=discord.ButtonStyle.secondary, custom_id="rate_3")
-    async def rate_three(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await self.process_rating(interaction, 3)
-
+    async def rate_three(self, interaction: discord.Interaction, button: discord.ui.Button): await self.process_rating(interaction, 3)
     @discord.ui.button(label="4 ⭐", style=discord.ButtonStyle.secondary, custom_id="rate_4")
-    async def rate_four(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await self.process_rating(interaction, 4)
-
+    async def rate_four(self, interaction: discord.Interaction, button: discord.ui.Button): await self.process_rating(interaction, 4)
     @discord.ui.button(label="5 ⭐", style=discord.ButtonStyle.success, custom_id="rate_5")
-    async def rate_five(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await self.process_rating(interaction, 5)
+    async def rate_five(self, interaction: discord.Interaction, button: discord.ui.Button): await self.process_rating(interaction, 5)
 
     async def on_timeout(self):
-        if not self.rated:
-            try:
-                if self.log_channel:
-                    await self.log_channel.send(f"⚠️ Ticket closed without evaluation rating for Staff ID `{self.handler_id}`.")
+        if not self.rated and self.log_channel:
+            try: await self.log_channel.send(f"⚠️ Ticket closed without evaluation rating for Staff ID `{self.handler_id}`.")
             except: pass
 
 
@@ -187,7 +159,6 @@ class VerificationModal(discord.ui.Modal, title="Minecraft Account Verification"
         await interaction.response.defer(ephemeral=True)
         payload = {"discord_id": str(interaction.user.id), "username": self.username.value, "code": self.verify_code.value}
         headers = {"Authorization": f"Bearer {SECRET_TOKEN}", "Content-Type": "application/json"}
-        
         try:
             async with aiohttp.ClientSession() as session:
                 async with session.post(MINECRAFT_API_URL, data=json.dumps(payload), headers=headers, timeout=5) as response:
@@ -202,30 +173,24 @@ class VerificationModal(discord.ui.Modal, title="Minecraft Account Verification"
 
 
 class TicketOptionsView(discord.ui.View):
-    """Persistent controls accessible inside initialized ticket matrices."""
-    def __init__(self):
-        super().__init__(timeout=None)
+    def __init__(self): super().__init__(timeout=None)
 
     @discord.ui.button(label="Claim Ticket", style=discord.ButtonStyle.blurple, custom_id="btn_claim_ticket", emoji="🛠️")
     async def claim_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         config = get_guild_config(interaction.guild.id)
         staff_role_id = config.get("staff_role_id")
-
         if not staff_role_id or not any(r.id == staff_role_id for r in interaction.user.roles):
             await interaction.response.send_message("❌ Only network administration staff can claim active tasks.", ephemeral=True)
             return
-            
         t_data = active_tickets_tracking.get(interaction.channel.id)
         if t_data and t_data["handler_id"] is not None:
             await interaction.response.send_message("⚠️ Task assignment already processed by another admin.", ephemeral=True)
             return
-
         now = datetime.utcnow()
         t_data["handler_id"] = interaction.user.id
         t_data["claimed_at"] = now
         duration = now - t_data["created_at"]
         minutes_taken = max(1, round(duration.total_seconds() / 60))
-
         button.disabled = True
         button.label = f"Claimed by {interaction.user.name}"
         button.style = discord.ButtonStyle.secondary
@@ -241,7 +206,6 @@ class TicketOptionsView(discord.ui.View):
         config = get_guild_config(interaction.guild.id)
         staff_role_id = config.get("staff_role_id")
         log_channel_id = config.get("staff_log_channel_id")
-
         t_data = active_tickets_tracking.get(interaction.channel.id)
         creator_id = t_data["creator_id"] if t_data else None
         handler_id = t_data["handler_id"] if t_data else None
@@ -252,58 +216,33 @@ class TicketOptionsView(discord.ui.View):
             return
 
         log_channel = interaction.guild.get_channel(log_channel_id) if log_channel_id else None
-        
         if not handler_id:
             await interaction.response.send_message("Wiping channel instantly. Directing unassigned log to transcripts archive...")
             await generate_and_save_transcript(interaction.channel, interaction.user)
-            
             if log_channel:
                 link_view = discord.ui.View()
-                link_view.add_item(discord.ui.Button(
-                    label="👁️ عرض سجل التكت / View Transcript", 
-                    url=f"{DASHBOARD_URL}/transcript/{interaction.channel.id}"
-                ))
-                log_embed = discord.Embed(
-                    title="🔒 Ticket Closed (Unassigned)",
-                    description=f"**Closed By:** {interaction.user.mention}",
-                    color=0xff0000
-                )
+                link_view.add_item(discord.ui.Button(label="👁️ عرض سجل التكت / View Transcript", url=f"{DASHBOARD_URL}/transcript/{interaction.channel.id}"))
+                log_embed = discord.Embed(title="🔒 Ticket Closed (Unassigned)", description=f"**Closed By:** {interaction.user.mention}", color=0xff0000)
                 await log_channel.send(embed=log_embed, view=link_view)
-                
             await asyncio.sleep(2)
             await interaction.channel.delete()
             return
 
-        embed = discord.Embed(
-            title="🔒 Ticket Closure Protocol",
-            description="Channel execution scheduled in **15 seconds**.\nPlease select performance rating metrics below.",
-            color=0xff0000
-        )
-        rating_view = RatingView(handler_id, creator_id, log_channel)
-        await interaction.response.send_message(embed=embed, view=rating_view)
+        embed = discord.Embed(title="🔒 Ticket Closure Protocol", description="Channel execution scheduled in **15 seconds**.\nPlease select performance rating metrics below.", color=0xff0000)
+        await interaction.response.send_message(embed=embed, view=RatingView(handler_id, creator_id, log_channel))
 
 
 class ProblemCategorySelect(discord.ui.Select):
     def __init__(self):
-        options = [
-            discord.SelectOption(label=v["label"], value=k, emoji=v["emoji"]) 
-            for k, v in DEPARTMENTS.items()
-        ]
+        options = [discord.SelectOption(label=v["label"], value=k, emoji=v["emoji"]) for k, v in DEPARTMENTS.items()]
         super().__init__(placeholder="🔍 Select your specific tracking department...", min_values=1, max_values=1, options=options, custom_id="select_dept")
 
     async def callback(self, interaction: discord.Interaction):
         category = self.values[0]
         dept = DEPARTMENTS[category]
-        
         embed = discord.Embed(
             title=f"{dept['emoji']} Department: {dept['label']}",
-            description=(
-                f"Welcome {interaction.user.mention},\n\nYour session has been routed to the respective division.\n"
-                "Please present your information clearly while waiting for help.\n\n"
-                "**Controls Available:**\n"
-                "🎮 **Verify Account:** Seamless synchronization step.\n"
-                "🛠️ **Claim Ticket:** Administration ownership handling."
-            ),
+            description=f"Welcome {interaction.user.mention},\n\nYour session has been routed to the respective division.\nPlease present your information clearly while waiting for help.\n\n**Controls Available:**\n🎮 **Verify Account**\n🛠️ **Claim Ticket**",
             color=dept['color']
         )
         await interaction.channel.edit(name=f"{category}-{interaction.user.name}")
@@ -317,9 +256,7 @@ class ProblemCategoryView(discord.ui.View):
 
 
 class MainPersistentView(discord.ui.View):
-    """The central access point component deployed in verification hubs."""
-    def __init__(self):
-        super().__init__(timeout=None)
+    def __init__(self): super().__init__(timeout=None)
 
     @discord.ui.button(label="Open Assistance Ticket", style=discord.ButtonStyle.primary, custom_id="main_open_gate", emoji="🎟️")
     async def open_ticket(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -329,12 +266,12 @@ class MainPersistentView(discord.ui.View):
         staff_role_id = config.get("staff_role_id")
 
         if not category_id or not staff_role_id:
-            await interaction.response.send_message("❌ هذا السيرفر لم يقم بإعداد نظام التكت بشكل صحيح بعد. يرجى مراجعة المسؤولين لإعداد البوت باستخدام أمر `!setup`.", ephemeral=True)
+            await interaction.response.send_message("❌ هذا السيرفر لم يقم بإعداد نظام التكت بشكل صحيح بعد. يرجى مراجعة المسؤولين لإعداد البوت باستخدام أمر `/setup`.", ephemeral=True)
             return
 
         category = guild.get_channel(category_id)
         if not category:
-            await interaction.response.send_message("❌ فئة التكت (Category) غير موجودة أو تم حذفها. يرجى إعادة ضبط البوت.", ephemeral=True)
+            await interaction.response.send_message("❌ فئة التكت غير موجودة أو تم حذفها.", ephemeral=True)
             return
 
         overwrites = {
@@ -342,60 +279,29 @@ class MainPersistentView(discord.ui.View):
             interaction.user: discord.PermissionOverwrite(read_messages=True, send_messages=True, embed_links=True),
             guild.me: discord.PermissionOverwrite(read_messages=True, send_messages=True, manage_channels=True)
         }
+        ticket_channel = await guild.create_text_channel(name=f"pending-{interaction.user.name}", category=category, overwrites=overwrites)
         
-        ticket_channel = await guild.create_text_channel(
-            name=f"pending-{interaction.user.name}", category=category, overwrites=overwrites
-        )
+        online_staff = [m.id for m in guild.members if any(r.id == staff_role_id for r in m.roles) and m.status != discord.Status.offline]
+        active_tickets_tracking[ticket_channel.id] = {"creator_id": interaction.user.id, "handler_id": None, "created_at": datetime.utcnow(), "online_staff": online_staff}
 
-        online_staff = [
-            m.id for m in guild.members 
-            if any(r.id == staff_role_id for r in m.roles) and m.status != discord.Status.offline
-        ]
-
-        active_tickets_tracking[ticket_channel.id] = {
-            "creator_id": interaction.user.id,
-            "handler_id": None,
-            "created_at": datetime.utcnow(),
-            "online_staff": online_staff
-        }
-
-        embed = discord.Embed(
-            title="⚡ NetPulse Systems Center",
-            description="Ticket created successfully. Select your specific issue from the selection array below:",
-            color=0xbf00ff
-        )
-        
+        embed = discord.Embed(title="⚡ NetPulse Systems Center", description="Ticket created successfully. Select your specific issue from the selection array below:", color=0xbf00ff)
         await ticket_channel.send(content=interaction.user.mention, embed=embed, view=ProblemCategoryView())
         await interaction.response.send_message(f"✅ Session initialized: {ticket_channel.mention}", ephemeral=True)
-        
         interaction.client.loop.create_task(check_sla_breach(interaction.client, guild, ticket_channel.id))
 
 
 async def check_sla_breach(bot, guild, channel_id):
-    await asyncio.sleep(180)  # 3-minute strict delay monitoring
+    await asyncio.sleep(180)
     t_data = active_tickets_tracking.get(channel_id)
-    if not t_data or t_data["handler_id"] is not None:
-        return
-
+    if not t_data or t_data["handler_id"] is not None: return
     config = get_guild_config(guild.id)
     log_channel_id = config.get("staff_log_channel_id")
     log_channel = guild.get_channel(log_channel_id) if log_channel_id else None
-    if not log_channel:
-        return
+    if not log_channel: return
 
-    lazy_mentions = []
-    for staff_id in t_data["online_staff"]:
-        member = guild.get_member(staff_id)
-        if member and member.status != discord.Status.offline:
-            lazy_mentions.append(member.mention)
-
+    lazy_mentions = [guild.get_member(sid).mention for sid in t_data["online_staff"] if guild.get_member(sid) and guild.get_member(sid).status != discord.Status.offline]
     if lazy_mentions:
-        staff_list = ", ".join(lazy_mentions)
-        alert_embed = discord.Embed(
-            title="🚨 SLA Response Breach Warning",
-            description=f"Ticket <#{channel_id}> remained unclaimed for over 3 minutes!\n\n**Available Staff during setup:**\n{staff_list}",
-            color=0xffaa00
-        )
+        alert_embed = discord.Embed(title="🚨 SLA Response Breach Warning", description=f"Ticket <#{channel_id}> remained unclaimed for over 3 minutes!\n\n**Available Staff:**\n{', '.join(lazy_mentions)}", color=0xffaa00)
         await log_channel.send(embed=alert_embed)
 
 
@@ -410,6 +316,8 @@ class TicketBot(commands.Bot):
         self.add_view(MainPersistentView())
         self.add_view(TicketOptionsView())
         self.add_view(ProblemCategoryView())
+        # 🔥 حقن وتزامن أوامر السلاش تلقائياً عند تشغيل البوت عالمياً لكي تظهر فوراً 🔥
+        await self.tree.sync()
 
 bot = TicketBot()
 
@@ -418,55 +326,75 @@ async def on_ready():
     print(f"✨ Cyberpunk Core Engine online as {bot.user}")
 
 
-# 🔥 الأَمر الجديد والديناميكي المطور بالكامل لإعداد البوت وتثبيت الغرفة تلقائياً 🔥
-@bot.command(name="setup")
-@commands.has_permissions(administrator=True)
-async def setup_verify_panel(ctx, category_id: int, staff_role_id: int, log_channel_id: int):
-    # 1. التأكد من صحة وجود القنوات والرتب في السيرفر الحالي لضمان عدم حدوث أخطاء
-    category = ctx.guild.get_channel(category_id)
-    role = ctx.guild.get_role(staff_role_id)
-    log_channel = ctx.guild.get_channel(log_channel_id)
-
-    if not category or not role or not log_channel:
-        await ctx.send("❌ **خطأ:** يرجى التأكد من أن الآيديهات صحيحة وتعود لقنوات ورتب موجودة فعلياً في هذا السيرفر!")
+# 🔥 تحويل أمر الإعداد بالكامل إلى أمر سلاش احترافي (Slash Command) 🔥
+@bot.tree.command(name="setup", description="إعداد نظام التحقق والتذاكر وإنشاء اللوحة التلقائية بالسيرفر.")
+@app_commands.describe(
+    category_id="آيدي فئة الدعم (Category ID) التي ستفتح التذاكر بداخلها",
+    staff_role_id="آيدي رتبة الإدارة أو المسؤولين عن الدعم (Staff Role ID)",
+    log_channel_id="آيدي غرفة السجلات وحفظ التقييمات وبلاغات التأخير (Log Channel ID)"
+)
+@app_commands.checks.has_permissions(administrator=True)
+async def setup_verify_panel_slash(
+    interaction: discord.Interaction, 
+    category_id: str, 
+    staff_role_id: str, 
+    log_channel_id: str
+):
+    # تفادي خروج الاستجابة بنظام ديسكورد إذا تأخر جلب الروم
+    await interaction.response.defer(ephemeral=True)
+    
+    try:
+        cat_id = int(category_id)
+        role_id = int(staff_role_id)
+        log_id = int(log_channel_id)
+    except ValueError:
+        await interaction.followup.send("❌ **خطأ:** يجب أن تكون جميع المدخلات عبارة عن أرقام (IDs) صالحة ومطابقة.", ephemeral=True)
         return
 
-    # 2. حفظ إعدادات السيرفر الحالي في قاعدة البيانات المصغرة ليدعم التعددية
-    save_guild_config(ctx.guild.id, category_id, staff_role_id, log_channel_id)
+    category = interaction.guild.get_channel(cat_id)
+    role = interaction.guild.get_role(role_id)
+    log_channel = interaction.guild.get_channel(log_id)
 
-    # 3. إنشاء روم علنية مغلقة للاعضاء تلقائياً ليضغطوا منها على زر فتح التذكرة والتحقق
+    if not category or not role or not log_channel:
+        await interaction.followup.send("❌ **خطأ:** لم يتم العثور على القنوات أو الرتبة المدخلة داخل هذا السيرفر. يرجى التأكد من الأرقام.", ephemeral=True)
+        return
+
+    # حفظ الإعدادات
+    save_guild_config(interaction.guild.id, cat_id, role_id, log_id)
+
+    # إنشاء الغرفة
     overwrites = {
-        ctx.guild.default_role: discord.PermissionOverwrite(read_messages=True, send_messages=False), # الأعضاء يقرأون البانر ولا يرسلون رسائل
-        ctx.guild.me: discord.PermissionOverwrite(read_messages=True, send_messages=True, embed_links=True)
+        interaction.guild.default_role: discord.PermissionOverwrite(read_messages=True, send_messages=False),
+        interaction.guild.me: discord.PermissionOverwrite(read_messages=True, send_messages=True, embed_links=True)
     }
     
-    panel_channel = await ctx.guild.create_text_channel(
+    panel_channel = await interaction.guild.create_text_channel(
         name="🎮-verify-here",
         position=0,
         overwrites=overwrites,
         topic="NetPulse Setup - Open tickets and verify accounts here."
     )
 
-    # 4. بناء البانر الترحيبي الأنيق وإرساله مع أزرار التحكم المستمرة
     embed = discord.Embed(
         title="🎮 Account Verification Hub",
         description=(
-            "مرحباً بك في مركز التحقق والدعم الفني التلقائي المطور للسيرفر!\n\n"
-            "**لربط ومزامنة حساب ماين كرافت الخاص بك أو لفتح تذكرة دعم:**\n"
-            "اضغط على الزر المرفق بالأسفل `Open Assistance Ticket` وسيقوم البوت بإنشاء تذكرة مشفرة وخاصة بك فوراً لمساعدتك داخل قنوات الدعم.\n\n"
-            "*NetPulse Automated Cryptographic Pipeline*"
+            "مرحباً بك في مركز التحقق والدعم الفني المطور!\n\n"
+            "**للإدخال والمزامنة التلقائية لحسابك أو لفتح تذكرة دعم:**\n"
+            "اضغط على الزر المرفق بالأسفل `Open Assistance Ticket` وسيتم إنشاء تذكرة خاصة بك فوراً لجلب بياناتك ومساعدتك.\n\n"
+            "*NetPulse Automated Encryption Pipeline*"
         ),
         color=0xbf00ff
     )
-    embed.set_footer(text="NetPulse Systems Center • اضغط مرة واحدة وانتظر بضع ثوانٍ.")
+    embed.set_footer(text="قم بالضغط لمرة واحدة وانتظر بضع ثوانٍ.")
     
-    # إرسال البانر داخل القناة الجديدة المنشأة تلقائياً
     await panel_channel.send(embed=embed, view=MainPersistentView())
-    
-    # تنظيف شات الإدارة وحذف أمر الكتابة وحقن رسالة تأكيد مؤقتة
-    try: await ctx.message.delete()
-    except: pass
-    await ctx.send(f"✅ **تم تثبيت وإعداد نظام البوت بنجاح!**\nتم إنشاء روم التحقق هنا: {panel_channel.mention}\nوتم حفظ الإعدادات في ملف التكوين بنجاح.", delete_after=10)
+    await interaction.followup.send(f"✅ **تم حفظ الإعدادات بنجاح!**\nتم إنشاء الروم المخصصة هنا: {panel_channel.mention}", ephemeral=True)
+
+# معالجة أخطاء الصلاحيات في أمر السلاش
+@setup_verify_panel_slash.error
+async def setup_error_handler(interaction: discord.Interaction, error: app_commands.AppCommandError):
+    if isinstance(error, app_commands.MissingPermissions):
+        await interaction.response.send_message("❌ هذا الأمر مخصص للإدارة العليا فقط (Administrator).", ephemeral=True)
 
 if __name__ == "__main__":
     bot.run(BOT_TOKEN)
