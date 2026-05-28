@@ -1,0 +1,10 @@
+{
+    "1234567890": {
+        "tickets_handled": 12,
+        "total_stars": 54
+    },
+    "9876543210": {
+        "tickets_handled": 8,
+        "total_stars": 32
+    }
+}
